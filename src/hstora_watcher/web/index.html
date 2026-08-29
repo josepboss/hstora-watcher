@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>HStora Watcher</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#overview"><span class="brand-mark">H</span><span>HStora<br><small>WATCHER</small></span></a>
+      <nav>
+        <button class="nav active" data-page="overview"><span>◫</span> Overview</button>
+        <button class="nav" data-page="products"><span>◎</span> Products</button>
+        <button class="nav" data-page="keywords"><span>⌕</span> Keywords</button>
+        <button class="nav" data-page="catalog"><span>↗</span> Catalog search</button>
+      </nav>
+      <div class="side-foot"><span class="live-dot"></span><span><b>Watcher online</b><small id="side-status">Connecting…</small></span></div>
+    </aside>
+
+    <main>
+      <header><div><p class="eyebrow">CONTROL CENTER</p><h1 id="page-title">Overview</h1></div><div class="actions"><button id="test-btn" class="btn ghost">Test Telegram</button><button id="check-btn" class="btn primary">Run check</button></div></header>
+
+      <div id="notice" role="status"></div>
+
+      <section class="page active" id="overview">
+        <div class="hero panel"><div><p class="eyebrow green">LIVE MONITORING</p><h2>Your catalog, under watch.</h2><p>HStora changes are scanned automatically. You only hear about the moments that matter.</p></div><div class="scan"><div class="radar"><i></i><b>H</b></div><span>Next scan</span><strong id="countdown">—</strong></div></div>
+        <div class="metrics">
+          <article class="metric"><span class="metric-icon violet">◎</span><div><small>WATCHED PRODUCTS</small><strong id="product-count">—</strong></div></article>
+          <article class="metric"><span class="metric-icon cyan">⌕</span><div><small>KEYWORD WATCHES</small><strong id="keyword-count">—</strong></div></article>
+          <article class="metric"><span class="metric-icon amber">⚡</span><div><small>LAST ALERTS</small><strong id="alert-count">—</strong></div></article>
+        </div>
+        <div class="grid-two">
+          <section class="panel block"><div class="section-head"><div><p class="eyebrow">QUICK ADD</p><h3>Watch a product</h3></div></div><form id="quick-product" class="stack"><label>HStora product ID<input name="productId" type="number" min="1" required placeholder="e.g. 381"></label><label>Low-stock threshold <span>optional</span><input name="threshold" type="number" min="0" placeholder="Uses global default"></label><button class="btn primary" type="submit">Start watching</button></form></section>
+          <section class="panel block"><div class="section-head"><div><p class="eyebrow">RECENT SIGNALS</p><h3>Activity</h3></div><button class="icon-btn" id="refresh-activity" title="Refresh">↻</button></div><div id="activity" class="activity"><p class="empty">No activity yet.</p></div></section>
+        </div>
+      </section>
+
+      <section class="page" id="products"><div class="section-intro"><div><h2>Product watches</h2><p>Track exact listings for price, title, and inventory changes.</p></div><button class="btn primary" data-dialog="product-dialog">+ Add product</button></div><div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Low-stock alert</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div></section>
+
+      <section class="page" id="keywords"><div class="section-intro"><div><h2>Keyword watches</h2><p>Get notified when a cheaper matching listing appears.</p></div><button class="btn primary" data-dialog="keyword-dialog">+ Add keywords</button></div><div id="keyword-cards" class="cards"></div></section>
+
+      <section class="page" id="catalog"><div class="section-intro"><div><h2>Catalog search</h2><p>Search every HStora catalog page, sorted cheapest first.</p></div></div><div class="panel search-panel"><form id="search-form"><input name="q" required placeholder="Try: aged gmail"><button class="btn primary">Search catalog</button></form><p id="search-summary"></p></div><div id="search-results" class="cards results"></div></section>
+    </main>
+  </div>
+
+  <dialog id="product-dialog"><form method="dialog" class="modal"><button class="close" value="cancel">×</button><p class="eyebrow">NEW WATCH</p><h2>Watch a product</h2><p>Enter the numeric ID shown in the HStora product URL.</p><label>Product ID<input name="productId" type="number" min="1" required placeholder="381"></label><label>Low-stock threshold <span>optional</span><input name="threshold" type="number" min="0" placeholder="Global default"></label><button class="btn primary" value="submit">Start watching</button></form></dialog>
+  <dialog id="keyword-dialog"><form method="dialog" class="modal"><button class="close" value="cancel">×</button><p class="eyebrow">NEW DISCOVERY WATCH</p><h2>Watch keywords</h2><p>All words must appear in a product title, in any order.</p><label>Keywords<input name="keywords" required placeholder="aged gmail"></label><button class="btn primary" value="submit">Start watching</button></form></dialog>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

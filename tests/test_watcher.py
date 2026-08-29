@@ -1,0 +1,70 @@
+import tempfile
+import unittest
+from decimal import Decimal
+
+from hstora_watcher.api import Product
+from hstora_watcher.storage import Store
+from hstora_watcher.watcher import Watcher
+
+
+class FakeApi:
+    def __init__(self, products): self.items = {p.id: p for p in products}
+    def product(self, product_id): return self.items[product_id]
+    def catalog(self): return iter(self.items.values())
+
+
+class FakeNotifier:
+    def __init__(self): self.messages = []
+    def send(self, text): self.messages.append(text)
+
+
+def product(id=1, name="Old account", price="2.00", stock=20):
+    return Product(id, name, Decimal(price), "USD", stock, f"https://hstora.com/en/product/{id}")
+
+
+class WatcherTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.store = Store(self.temp.name + "/test.db")
+        self.notify = FakeNotifier()
+
+    def tearDown(self): self.temp.cleanup()
+
+    def watcher(self, items): return Watcher(FakeApi(items), self.store, self.notify, 10)
+
+    def test_product_change_and_restock_alerts(self):
+        self.store.add_product(1)
+        self.store.save_state(product(stock=0))
+        self.watcher([product(name="New account", price="1.50", stock=5)]).check_products()
+        self.assertEqual(len(self.notify.messages), 1)
+        self.assertIn("Title changed", self.notify.messages[0])
+        self.assertIn("Price changed", self.notify.messages[0])
+        self.assertIn("Restocked", self.notify.messages[0])
+
+    def test_low_stock_only_alerts_when_crossing_threshold(self):
+        self.store.add_product(1)
+        self.store.save_state(product(stock=11))
+        self.watcher([product(stock=10)]).check_products()
+        self.assertIn("Low stock", self.notify.messages[0])
+        self.notify.messages.clear()
+        self.watcher([product(stock=9)]).check_products()
+        self.assertEqual(self.notify.messages, [])
+
+    def test_new_keyword_match_must_be_below_existing_floor(self):
+        self.store.add_keyword("gmail aged")
+        watcher = self.watcher([product(1, "Aged Gmail", "3"), product(2, "Gmail aged new", "5")])
+        watcher.check_keywords()
+        self.assertEqual(len(self.notify.messages), 1)
+        self.notify.messages.clear()
+        watcher.api.items[3] = product(3, "Gmail aged cheap", "2")
+        watcher.check_keywords()
+        self.assertEqual(len(self.notify.messages), 1)
+        self.assertIn("New lowest", self.notify.messages[0])
+
+    def test_keyword_requires_all_words_case_insensitively(self):
+        self.assertTrue(Watcher.matches("Premium Aged Gmail Account", "gmail aged"))
+        self.assertFalse(Watcher.matches("Premium Gmail Account", "gmail aged"))
+
+
+if __name__ == "__main__": unittest.main()
+

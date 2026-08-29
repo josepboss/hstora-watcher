@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hstora-watcher"
+version = "0.1.0"
+description = "Watch HStora products and keyword searches and notify Telegram"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+hstora-watcher = "hstora_watcher.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hstora_watcher = ["web/*"]
