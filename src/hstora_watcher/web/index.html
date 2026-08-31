@@ -42,7 +42,7 @@
 
       <section class="page" id="keywords"><div class="section-intro"><div><h2>Keyword watches</h2><p>Get notified when a cheaper matching listing appears.</p></div><button class="btn primary" data-dialog="keyword-dialog">+ Add keywords</button></div><div id="keyword-cards" class="cards"></div></section>
 
-      <section class="page" id="catalog"><div class="section-intro"><div><h2>Catalog search</h2><p>Search every HStora catalog page, sorted cheapest first.</p></div></div><div class="panel search-panel"><form id="search-form"><input name="q" required placeholder="Try: aged gmail"><button class="btn primary">Search catalog</button></form><p id="search-summary"></p></div><div id="search-results" class="cards results"></div></section>
+      <section class="page" id="catalog"><div class="section-intro"><div><h2>Catalog search</h2><p>Search every HStora catalog page and sort by price or available stock.</p></div></div><div class="panel search-panel"><form id="search-form"><input name="q" required placeholder="Try: aged gmail"><select name="sort" aria-label="Sort products"><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="stock_desc">Stock: high to low</option><option value="stock_asc">Stock: low to high</option></select><button class="btn primary">Search catalog</button></form><p id="search-summary"></p></div><div id="search-results" class="cards results"></div></section>
     </main>
   </div>
 

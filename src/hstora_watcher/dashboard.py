@@ -12,7 +12,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 
-from .api import HstoraClient
+from .api import HstoraClient, SORT_OPTIONS, sort_products
 from .config import Config
 from .storage import Store
 from .telegram import TelegramNotifier
@@ -135,10 +135,13 @@ def handler(runtime: Runtime):
                 elif parsed.path == "/api/activity":
                     self.json_response({"items": [dict(r) for r in runtime.store.activity()]})
                 elif parsed.path == "/api/search":
-                    query = urllib.parse.parse_qs(parsed.query).get("q", [""])[0].strip()
+                    params = urllib.parse.parse_qs(parsed.query)
+                    query = params.get("q", [""])[0].strip()
+                    order = params.get("sort", ["price_asc"])[0]
                     if not query: raise ValueError("Enter at least one keyword")
-                    matches = sorted((p for p in runtime.api.catalog() if runtime.watcher.matches(p.name, query)), key=lambda p: (p.price, p.id))
-                    self.json_response({"items": [{**asdict(p), "price": str(p.price)} for p in matches[:100]], "total": len(matches)})
+                    if order not in SORT_OPTIONS: raise ValueError("Invalid sort option")
+                    matches = sort_products([p for p in runtime.api.catalog() if runtime.watcher.matches(p.name, query)], order)
+                    self.json_response({"items": [{**asdict(p), "price": str(p.price)} for p in matches[:100]], "total": len(matches), "sort": order})
                 else: self.send_error(404)
             except ValueError as exc: self.json_response({"error": str(exc)}, 400)
             except Exception as exc:

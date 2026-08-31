@@ -6,7 +6,7 @@ import signal
 import sys
 import time
 
-from .api import HstoraClient
+from .api import HstoraClient, SORT_OPTIONS, sort_products
 from .config import Config
 from .storage import Store
 from .telegram import TelegramNotifier
@@ -23,6 +23,7 @@ def parser() -> argparse.ArgumentParser:
     search = sub.add_parser("search", help="Search the full current catalog, cheapest first")
     search.add_argument("keywords", nargs="+")
     search.add_argument("--limit", type=int, default=30)
+    search.add_argument("--sort", choices=sorted(SORT_OPTIONS), default="price_asc")
     watch = sub.add_parser("watch-product", help="Track a product ID")
     watch.add_argument("product_id", type=int)
     watch.add_argument("--threshold", type=int)
@@ -76,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  #{row['id']}  {row['keywords']}")
         elif args.command == "search":
             words = " ".join(args.keywords)
-            matches = sorted((p for p in api.catalog() if watcher.matches(p.name, words)), key=lambda p: (p.price, p.id))
+            matches = sort_products([p for p in api.catalog() if watcher.matches(p.name, words)], args.sort)
             for product in matches[:max(0, args.limit)]:
                 print(f"{product.price:>10} {product.currency} | stock {product.stock:>6} | #{product.id} | {product.name}\n  {product.url}")
             print(f"{len(matches)} matching product(s)")

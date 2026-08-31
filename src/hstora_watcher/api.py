@@ -40,6 +40,19 @@ class Product:
         )
 
 
+SORT_OPTIONS = {"price_asc", "price_desc", "stock_asc", "stock_desc"}
+
+
+def sort_products(products: list[Product], order: str = "price_asc") -> list[Product]:
+    """Sort catalog products with stable product-ID tie breaking."""
+    if order not in SORT_OPTIONS:
+        raise ValueError(f"Unknown sort order: {order}")
+    field, direction = order.split("_", 1)
+    value = (lambda p: p.price) if field == "price" else (lambda p: p.stock)
+    sign = -1 if direction == "desc" else 1
+    return sorted(products, key=lambda p: (sign * value(p), p.id))
+
+
 class HstoraClient:
     def __init__(self, api_key: str, api_secret: str, base_url: str, timeout: int = 30):
         self.api_key = api_key
@@ -89,4 +102,3 @@ class HstoraClient:
             if page >= int(pagination.get("pages", page)):
                 return
             page += 1
-

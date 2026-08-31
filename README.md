@@ -38,11 +38,15 @@ Set a long random `DASHBOARD_PASSWORD`. The dashboard binds to `127.0.0.1:8787` 
 
 ## Use
 
-Search every catalog page, with cheapest results first:
+Search every catalog page. Results default to cheapest first and can also be sorted by price or available stock:
 
 ```bash
 hstora-watcher search gmail aged
+hstora-watcher search gmail aged --sort stock_desc
+hstora-watcher search gmail aged --sort stock_asc
 ```
+
+The Partner API currently does not expose a product sales count, so genuine sales sorting is unavailable. The watcher does not treat stock decreases as sales because inventory can also be edited or restocked.
 
 Watch products and keywords:
 

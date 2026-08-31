@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from decimal import Decimal
 
-from hstora_watcher.api import Product
+from hstora_watcher.api import Product, sort_products
 from hstora_watcher.storage import Store
 from hstora_watcher.watcher import Watcher
 
@@ -65,6 +65,11 @@ class WatcherTests(unittest.TestCase):
         self.assertTrue(Watcher.matches("Premium Aged Gmail Account", "gmail aged"))
         self.assertFalse(Watcher.matches("Premium Gmail Account", "gmail aged"))
 
+    def test_catalog_sorting_by_price_and_stock(self):
+        items = [product(1, price="4", stock=8), product(2, price="2", stock=3), product(3, price="3", stock=20)]
+        self.assertEqual([p.id for p in sort_products(items, "price_asc")], [2, 3, 1])
+        self.assertEqual([p.id for p in sort_products(items, "stock_desc")], [3, 1, 2])
+        self.assertEqual([p.id for p in sort_products(items, "stock_asc")], [2, 1, 3])
+
 
 if __name__ == "__main__": unittest.main()
-
