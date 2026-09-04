@@ -12,6 +12,7 @@ URL_RE = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[a-z0-9.-]+\.(?:com|net|org
 def sanitize_listing_text(value: str, blocked_terms: tuple[str, ...]) -> str:
     text = html.unescape(re.sub(r"<[^>]+>", " ", value or ""))
     text = URL_RE.sub("", text)
+    text = re.sub(r"(?i)\bwelcome\s+to\s+[\w][\w .&'-]{1,50}?(?=[.!?,\n]|$)", "", text)
     for term in blocked_terms:
         if term:
             text = re.sub(re.escape(term), "", text, flags=re.IGNORECASE)
@@ -30,8 +31,9 @@ def prepare_listing(product: Product, profit: str, blocked_terms: tuple[str, ...
     if margin < 0:
         raise ValueError("Profit cannot be negative")
     price = (product.price + margin).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-    title = sanitize_listing_text(product.name, blocked_terms)
-    description = sanitize_listing_text(product.description or product.name, blocked_terms)
+    effective_terms = blocked_terms + ((product.seller,) if product.seller else ())
+    title = sanitize_listing_text(product.name, effective_terms)
+    description = sanitize_listing_text(product.description or product.name, effective_terms)
     if not title or not description:
         raise ValueError("Sanitizing removed the entire title or description")
     return {

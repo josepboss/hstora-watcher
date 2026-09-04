@@ -73,16 +73,24 @@ class WatcherTests(unittest.TestCase):
         self.assertEqual([p.id for p in sort_products(items, "stock_asc")], [2, 1, 3])
 
     def test_z2u_listing_sanitizes_and_calculates_rules(self):
-        item = Product(9, "HStora Twitter https://hstora.com/item", Decimal("0.40"), "USD", 8, "", description="Buy from HStore at www.hstora.com now")
+        item = Product(9, "HStora Twitter https://hstora.com/item", Decimal("0.40"), "USD", 8, "", description="Welcome to Mirastore. Buy from HStore at www.hstora.com now", seller="Mirastore")
         listing = prepare_listing(item, "0.20", ("HStora", "HStore"))
         self.assertEqual(listing["price"], "0.60")
         self.assertEqual(listing["minUnits"], 2)
         self.assertEqual(listing["stock"], 99999999)
         self.assertNotIn("hstora", (listing["title"] + listing["description"]).lower())
+        self.assertNotIn("mirastore", listing["description"].lower())
+        self.assertNotIn("welcome to", listing["description"].lower())
 
     def test_z2u_minimum_is_one_at_one_dollar(self):
         listing = prepare_listing(product(price="0.80"), "0.20", ())
         self.assertEqual(listing["minUnits"], 1)
+
+    def test_seller_is_read_from_api_or_welcome_line(self):
+        direct = Product.from_api({"id": 1, "name": "A", "price": 1, "stock_available": 1, "seller": {"name": "MiraStore"}})
+        inferred = Product.from_api({"id": 2, "name": "B", "price": 1, "stock_available": 1, "description": "Welcome to MiraStore. Quality accounts."})
+        self.assertEqual(direct.seller, "MiraStore")
+        self.assertEqual(inferred.seller, "MiraStore")
 
     def test_stock_actions_require_linked_z2u_offer(self):
         self.assertFalse(self.store.queue_z2u_action(1, "deactivate"))

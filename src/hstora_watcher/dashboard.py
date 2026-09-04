@@ -162,6 +162,16 @@ def handler(runtime: Runtime):
                     self.json_response(listing)
                 elif parsed.path == "/api/z2u/offers":
                     self.json_response({"items": [dict(r) for r in runtime.store.z2u_offers()]})
+                elif parsed.path == "/api/seller-products":
+                    params = urllib.parse.parse_qs(parsed.query)
+                    seller_query = params.get("seller", [""])[0].strip()
+                    order = params.get("sort", ["price_asc"])[0]
+                    if not seller_query: raise ValueError("Enter a seller name, slug, or HStora store URL")
+                    if order not in SORT_OPTIONS: raise ValueError("Invalid sort option")
+                    seller_name, products = runtime.api.seller_catalog(seller_query)
+                    products = sort_products(products, order)
+                    offer_map = {row["product_id"]: dict(row) for row in runtime.store.z2u_offers()}
+                    self.json_response({"seller": seller_name, "items": [{**asdict(p), "price": str(p.price), "z2u": offer_map.get(p.id)} for p in products], "total": len(products)})
                 else: self.send_error(404)
             except ValueError as exc: self.json_response({"error": str(exc)}, 400)
             except Exception as exc:
@@ -199,6 +209,10 @@ def handler(runtime: Runtime):
                 elif self.path == "/api/z2u/offers":
                     product_id = int(data.get("productId", 0))
                     if product_id <= 0: raise ValueError("Invalid product ID")
+                    if not runtime.store.state(product_id):
+                        product = runtime.api.product(product_id)
+                        runtime.store.add_product(product_id)
+                        runtime.store.save_state(product)
                     offer_id = str(data.get("offerId", "")).strip() or None
                     manage_url = str(data.get("manageUrl", "")).strip() or None
                     if manage_url:

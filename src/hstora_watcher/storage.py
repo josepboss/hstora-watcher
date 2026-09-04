@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS product_state (
   currency TEXT NOT NULL,
   stock INTEGER NOT NULL,
   url TEXT NOT NULL,
+  seller TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS keyword_matches (
@@ -74,6 +75,9 @@ class Store:
             columns = {row[1] for row in db.execute("PRAGMA table_info(z2u_offers)")}
             if "manage_url" not in columns:
                 db.execute("ALTER TABLE z2u_offers ADD COLUMN manage_url TEXT")
+            state_columns = {row[1] for row in db.execute("PRAGMA table_info(product_state)")}
+            if "seller" not in state_columns:
+                db.execute("ALTER TABLE product_state ADD COLUMN seller TEXT NOT NULL DEFAULT ''")
             db.execute("PRAGMA optimize")
 
     @contextmanager
@@ -118,9 +122,9 @@ class Store:
 
     def save_state(self, product: Product) -> None:
         with self.connect() as db:
-            db.execute("""INSERT INTO product_state(product_id,name,price,currency,stock,url) VALUES(?,?,?,?,?,?)
-                ON CONFLICT(product_id) DO UPDATE SET name=excluded.name,price=excluded.price,currency=excluded.currency,stock=excluded.stock,url=excluded.url,updated_at=CURRENT_TIMESTAMP""",
-                (product.id, product.name, str(product.price), product.currency, product.stock, product.url))
+            db.execute("""INSERT INTO product_state(product_id,name,price,currency,stock,url,seller) VALUES(?,?,?,?,?,?,?)
+                ON CONFLICT(product_id) DO UPDATE SET name=excluded.name,price=excluded.price,currency=excluded.currency,stock=excluded.stock,url=excluded.url,seller=excluded.seller,updated_at=CURRENT_TIMESTAMP""",
+                (product.id, product.name, str(product.price), product.currency, product.stock, product.url, product.seller))
 
     def keyword_match(self, watch_id: int, product_id: int):
         with self.connect() as db:

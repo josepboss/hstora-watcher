@@ -120,6 +120,12 @@ Click **List on Z2U** beside any catalog product, enter the profit to add per un
 
 The extension then submits the form. Paste the resulting Z2U offer ID and its Z2U manage-listing URL into the extension panel. Both are stored in the backend. `LISTING_BLOCKED_TERMS` is a comma-separated list of source/store names removed from titles and descriptions. URLs are always removed automatically.
 
+Already published an offer yourself? Open **Products → Map existing offer** in the dashboard and enter the HStora product ID, numeric Z2U offer ID, and Z2U management URL. The offer is marked published and immediately becomes eligible for stock synchronization.
+
+The dashboard’s **Sellers** page accepts an HStora seller name such as `MiraStore`, a slug such as `mira-store`, or the complete public store URL. It discovers products from that seller’s public storefront, then refreshes their authoritative price and stock through the Partner API. Seller browsing supports the same price and stock sort choices as catalog search.
+
+Seller branding is removed from Z2U content when the API supplies seller metadata or when a description contains a recognizable `Welcome to SellerName` introduction. Add any unusual branding variants to `LISTING_BLOCKED_TERMS` as an additional safeguard.
+
 ### Automatic Z2U stock synchronization
 
 For products with a saved Z2U offer ID and manage-listing URL:

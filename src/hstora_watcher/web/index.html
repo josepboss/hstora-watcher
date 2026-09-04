@@ -16,6 +16,7 @@
         <button class="nav" data-page="products"><span>◎</span> Products</button>
         <button class="nav" data-page="keywords"><span>⌕</span> Keywords</button>
         <button class="nav" data-page="catalog"><span>↗</span> Catalog search</button>
+        <button class="nav" data-page="sellers"><span>◇</span> Sellers</button>
       </nav>
       <div class="side-foot"><span class="live-dot"></span><span><b>Watcher online</b><small id="side-status">Connecting…</small></span></div>
     </aside>
@@ -39,16 +40,19 @@
         </div>
       </section>
 
-      <section class="page" id="products"><div class="section-intro"><div><h2>Product watches</h2><p>Track exact listings for price, title, inventory, and Z2U publication status.</p></div><button class="btn primary" data-dialog="product-dialog">+ Add product</button></div><div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Low-stock alert</th><th>Z2U offer</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div></section>
+      <section class="page" id="products"><div class="section-intro"><div><h2>Product watches</h2><p>Track exact listings for price, title, inventory, and Z2U publication status.</p></div><div class="actions"><button class="btn ghost" data-dialog="mapping-dialog">Map existing offer</button><button class="btn primary" data-dialog="product-dialog">+ Add product</button></div></div><div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Low-stock alert</th><th>Z2U offer</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div></section>
 
       <section class="page" id="keywords"><div class="section-intro"><div><h2>Keyword watches</h2><p>Get notified when a cheaper matching listing appears.</p></div><button class="btn primary" data-dialog="keyword-dialog">+ Add keywords</button></div><div id="keyword-cards" class="cards"></div></section>
 
       <section class="page" id="catalog"><div class="section-intro"><div><h2>Catalog search</h2><p>Search every HStora catalog page and sort by price or available stock.</p></div></div><div class="panel search-panel"><form id="search-form"><input name="q" required placeholder="Try: aged gmail"><select name="sort" aria-label="Sort products"><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="stock_desc">Stock: high to low</option><option value="stock_asc">Stock: low to high</option></select><button class="btn primary">Search catalog</button></form><p id="search-summary"></p></div><div id="search-results" class="cards results"></div></section>
+
+      <section class="page" id="sellers"><div class="section-intro"><div><h2>Products by seller</h2><p>Browse a vendor’s public storefront with live API price and stock.</p></div></div><div class="panel search-panel"><form id="seller-form"><input name="seller" required placeholder="MiraStore, mira-store, or store URL"><select name="sort" aria-label="Sort seller products"><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="stock_desc">Stock: high to low</option><option value="stock_asc">Stock: low to high</option></select><button class="btn primary">Load seller</button></form><p id="seller-summary"></p></div><div id="seller-results" class="cards results"></div></section>
     </main>
   </div>
 
   <dialog id="product-dialog"><form method="dialog" class="modal"><button class="close" value="cancel">×</button><p class="eyebrow">NEW WATCH</p><h2>Watch a product</h2><p>Enter the numeric ID shown in the HStora product URL.</p><label>Product ID<input name="productId" type="number" min="1" required placeholder="381"></label><label>Low-stock threshold <span>optional</span><input name="threshold" type="number" min="0" placeholder="Global default"></label><button class="btn primary" value="submit">Start watching</button></form></dialog>
   <dialog id="keyword-dialog"><form method="dialog" class="modal"><button class="close" value="cancel">×</button><p class="eyebrow">NEW DISCOVERY WATCH</p><h2>Watch keywords</h2><p>All words must appear in a product title, in any order.</p><label>Keywords<input name="keywords" required placeholder="aged gmail"></label><button class="btn primary" value="submit">Start watching</button></form></dialog>
+  <dialog id="mapping-dialog"><form method="dialog" class="modal"><button class="close" value="cancel">×</button><p class="eyebrow">EXISTING Z2U OFFER</p><h2>Map an offer manually</h2><p>This enables automatic deactivation and relisting from HStora stock changes.</p><label>HStora product ID<input name="productId" type="number" min="1" required></label><label>Z2U offer ID<input name="offerId" inputmode="numeric" pattern="[0-9]+" required></label><label>Z2U management URL<input name="manageUrl" type="url" required placeholder="https://www.z2u.com/sell/manageList?..."></label><button class="btn primary" value="submit">Mark as listed</button></form></dialog>
   <script src="/assets/app.js"></script>
 </body>
 </html>

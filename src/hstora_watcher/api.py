@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import secrets
 import time
 import urllib.error
@@ -27,9 +28,18 @@ class Product:
     url: str
     updated_at: str = ""
     description: str = ""
+    seller: str = ""
 
     @classmethod
     def from_api(cls, item: dict[str, Any]) -> "Product":
+        seller_data = item.get("seller") or item.get("vendor") or item.get("store") or {}
+        if not isinstance(seller_data, dict):
+            seller_data = {}
+        seller = str(item.get("seller_name") or item.get("vendor_name") or item.get("store_name") or item.get("shop_name") or seller_data.get("name") or "")
+        description = str(item.get("description") or item.get("short_description") or "")
+        if not seller:
+            welcome = re.search(r"(?i)\bwelcome\s+to\s+([\w][\w .&'-]{1,50}?)(?=[.!?,<\n]|$)", description)
+            seller = welcome.group(1).strip() if welcome else ""
         return cls(
             id=int(item["id"]),
             name=str(item.get("name", "")),
@@ -38,7 +48,8 @@ class Product:
             stock=int(item.get("stock_available") or 0),
             url=str(item.get("product_url", "")),
             updated_at=str(item.get("updated_at", "")),
-            description=str(item.get("description") or item.get("short_description") or ""),
+            description=description,
+            seller=seller,
         )
 
 
@@ -104,3 +115,39 @@ class HstoraClient:
             if page >= int(pagination.get("pages", page)):
                 return
             page += 1
+
+    def seller_catalog(self, seller: str, max_pages: int = 50) -> tuple[str, list[Product]]:
+        """Discover a public seller's product IDs, then load live details via the API."""
+        raw = seller.strip()
+        if "/store/" in raw:
+            slug = urllib.parse.urlparse(raw).path.split("/store/", 1)[1].strip("/").split("/", 1)[0]
+        else:
+            slug = re.sub(r"[^a-z0-9]+", "-", raw.casefold()).strip("-")
+        if not slug or not re.fullmatch(r"[a-z0-9-]+", slug):
+            raise ValueError("Enter a valid HStora seller name, slug, or store URL")
+        site_root = self.base_url.split("/api/v1", 1)[0]
+        product_ids: list[int] = []
+        seller_name = raw if "/store/" not in raw else slug.replace("-", " ").title()
+        for page in range(1, max_pages + 1):
+            url = f"{site_root}/en/store/{slug}" + (f"?page={page}" if page > 1 else "")
+            request = urllib.request.Request(url, headers={"Accept": "text/html", "User-Agent": "hstora-watcher/0.2"})
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    html_text = response.read().decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as exc:
+                if exc.code == 404: raise ApiError(f"HStora seller not found: {slug}") from exc
+                raise ApiError(f"HStora seller page returned HTTP {exc.code}") from exc
+            heading = re.search(r"<h1[^>]*>(.*?)</h1>", html_text, re.I | re.S)
+            if heading:
+                seller_name = re.sub(r"<[^>]+>", "", heading.group(1)).strip()
+            page_ids = [int(x) for x in re.findall(r"/en/product/(\d+)(?:[-/\"'])", html_text)]
+            fresh = [pid for pid in page_ids if pid not in product_ids]
+            product_ids.extend(fresh)
+            has_next = bool(re.search(rf"/en/store/{re.escape(slug)}\?page={page + 1}\b", html_text))
+            if not has_next or not fresh:
+                break
+        products = []
+        for product_id in product_ids:
+            product = self.product(product_id)
+            products.append(Product(**{**product.__dict__, "seller": seller_name}))
+        return seller_name, products
