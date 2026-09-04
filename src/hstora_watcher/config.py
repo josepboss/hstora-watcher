@@ -34,6 +34,8 @@ class Config:
     dashboard_password: str = ""
     dashboard_host: str = "127.0.0.1"
     dashboard_port: int = 8787
+    extension_secret: str = ""
+    listing_blocked_terms: tuple[str, ...] = ("HStora", "HStore")
 
     @classmethod
     def from_env(cls, require_telegram: bool = True, require_dashboard: bool = False) -> "Config":
@@ -44,12 +46,15 @@ class Config:
             "TELEGRAM_BOT_TOKEN": os.getenv("TELEGRAM_BOT_TOKEN", ""),
             "TELEGRAM_CHAT_ID": os.getenv("TELEGRAM_CHAT_ID", ""),
             "DASHBOARD_PASSWORD": os.getenv("DASHBOARD_PASSWORD", ""),
+            "EXTENSION_SECRET": os.getenv("EXTENSION_SECRET", ""),
         }
         required = ["HSTORA_API_KEY", "HSTORA_API_SECRET"]
         if require_telegram:
             required += ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]
         if require_dashboard and not values["DASHBOARD_PASSWORD"]:
             required.append("DASHBOARD_PASSWORD")
+        if require_dashboard and not values["EXTENSION_SECRET"]:
+            required.append("EXTENSION_SECRET")
         missing = [key for key in required if not values[key]]
         if missing:
             raise ValueError("Missing configuration: " + ", ".join(missing))
@@ -67,4 +72,6 @@ class Config:
             dashboard_password=os.getenv("DASHBOARD_PASSWORD", ""),
             dashboard_host=os.getenv("DASHBOARD_HOST", "127.0.0.1"),
             dashboard_port=int(os.getenv("DASHBOARD_PORT", "8787")),
+            extension_secret=os.getenv("EXTENSION_SECRET", ""),
+            listing_blocked_terms=tuple(x.strip() for x in os.getenv("LISTING_BLOCKED_TERMS", "HStora,HStore").split(",") if x.strip()),
         )

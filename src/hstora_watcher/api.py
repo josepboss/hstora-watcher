@@ -26,6 +26,7 @@ class Product:
     stock: int
     url: str
     updated_at: str = ""
+    description: str = ""
 
     @classmethod
     def from_api(cls, item: dict[str, Any]) -> "Product":
@@ -37,6 +38,7 @@ class Product:
             stock=int(item.get("stock_available") or 0),
             url=str(item.get("product_url", "")),
             updated_at=str(item.get("updated_at", "")),
+            description=str(item.get("description") or item.get("short_description") or ""),
         )
 
 

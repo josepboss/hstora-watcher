@@ -14,6 +14,7 @@ from importlib.resources import files
 
 from .api import HstoraClient, SORT_OPTIONS, sort_products
 from .config import Config
+from .listing import prepare_listing
 from .storage import Store
 from .telegram import TelegramNotifier
 from .watcher import Watcher
@@ -76,6 +77,10 @@ def handler(runtime: Runtime):
             expected = base64.b64encode(f"{runtime.config.dashboard_username}:{runtime.config.dashboard_password}".encode()).decode()
             return header.startswith("Basic ") and hmac.compare_digest(header[6:], expected)
 
+        def extension_authenticated(self) -> bool:
+            supplied = self.headers.get("X-Extension-Secret", "")
+            return bool(runtime.config.extension_secret) and hmac.compare_digest(supplied, runtime.config.extension_secret)
+
         def require_auth(self) -> bool:
             if self.authenticated():
                 return True
@@ -127,10 +132,12 @@ def handler(runtime: Runtime):
                 elif parsed.path == "/api/status":
                     self.json_response({"ok": True, "uptime": int(time.time()-runtime.started_at), "lastCheck": runtime.last_check, "nextCheck": runtime.next_check, "lastAlerts": runtime.last_alerts, "lastError": runtime.last_error, "checking": runtime.check_lock.locked(), "interval": runtime.config.interval, **runtime.store.counts()})
                 elif parsed.path == "/api/watches":
+                    offer_map = {row["product_id"]: dict(row) for row in runtime.store.z2u_offers()}
                     products = [dict(row) for row in runtime.store.products()]
                     for p in products:
                         state = runtime.store.state(p["product_id"])
                         p["state"] = dict(state) if state else None
+                        p["z2u"] = offer_map.get(p["product_id"])
                     self.json_response({"products": products, "keywords": [dict(r) for r in runtime.store.keywords()]})
                 elif parsed.path == "/api/activity":
                     self.json_response({"items": [dict(r) for r in runtime.store.activity()]})
@@ -141,7 +148,20 @@ def handler(runtime: Runtime):
                     if not query: raise ValueError("Enter at least one keyword")
                     if order not in SORT_OPTIONS: raise ValueError("Invalid sort option")
                     matches = sort_products([p for p in runtime.api.catalog() if runtime.watcher.matches(p.name, query)], order)
-                    self.json_response({"items": [{**asdict(p), "price": str(p.price)} for p in matches[:100]], "total": len(matches), "sort": order})
+                    offer_map = {row["product_id"]: dict(row) for row in runtime.store.z2u_offers()}
+                    self.json_response({"items": [{**asdict(p), "price": str(p.price), "z2u": offer_map.get(p.id)} for p in matches[:100]], "total": len(matches), "sort": order})
+                elif parsed.path.startswith("/api/products/") and parsed.path.endswith("/listing"):
+                    parts = parsed.path.strip("/").split("/")
+                    product_id = int(parts[2])
+                    profit = urllib.parse.parse_qs(parsed.query).get("profit", [""])[0]
+                    product = runtime.api.product(product_id)
+                    listing = prepare_listing(product, profit, runtime.config.listing_blocked_terms)
+                    runtime.store.add_product(product_id)
+                    runtime.store.save_state(product)
+                    runtime.store.save_z2u_offer(product_id, "prepared", listed_price=listing["price"])
+                    self.json_response(listing)
+                elif parsed.path == "/api/z2u/offers":
+                    self.json_response({"items": [dict(r) for r in runtime.store.z2u_offers()]})
                 else: self.send_error(404)
             except ValueError as exc: self.json_response({"error": str(exc)}, 400)
             except Exception as exc:
@@ -149,8 +169,9 @@ def handler(runtime: Runtime):
                 self.json_response({"error": str(exc)}, 500)
 
         def do_POST(self):
-            if not self.require_auth(): return
-            if not self.same_origin(): return self.json_response({"error": "Cross-origin request rejected"}, 403)
+            is_extension = self.path.startswith("/api/z2u/") and self.extension_authenticated()
+            if not is_extension and not self.require_auth(): return
+            if not is_extension and not self.same_origin(): return self.json_response({"error": "Cross-origin request rejected"}, 403)
             try:
                 data = self.read_json()
                 if self.path == "/api/products":
@@ -174,6 +195,30 @@ def handler(runtime: Runtime):
                 elif self.path == "/api/telegram/test":
                     runtime.notifier.send("✅ HStora Watcher dashboard is connected.")
                     runtime.store.add_activity("telegram", "Telegram test notification sent")
+                    self.json_response({"ok": True})
+                elif self.path == "/api/z2u/offers":
+                    product_id = int(data.get("productId", 0))
+                    if product_id <= 0: raise ValueError("Invalid product ID")
+                    offer_id = str(data.get("offerId", "")).strip() or None
+                    manage_url = str(data.get("manageUrl", "")).strip() or None
+                    if manage_url:
+                        parsed_url = urllib.parse.urlparse(manage_url)
+                        if parsed_url.scheme != "https" or parsed_url.netloc != "www.z2u.com" or not parsed_url.path.startswith("/sell/manage"):
+                            raise ValueError("Management URL must be an HTTPS Z2U manage-listing URL")
+                    status = "published" if offer_id else str(data.get("status", "submitted"))
+                    runtime.store.save_z2u_offer(product_id, status, offer_id=offer_id, listed_price=data.get("listedPrice"), error=data.get("error"), manage_url=manage_url)
+                    current = runtime.store.state(product_id)
+                    if offer_id and manage_url and current and current["stock"] == 0:
+                        runtime.store.queue_z2u_action(product_id, "deactivate")
+                    runtime.store.add_activity("z2u", f"Z2U product #{product_id}: {status}" + (f" — offer {offer_id}" if offer_id else ""))
+                    self.json_response({"ok": True, "status": status})
+                elif self.path == "/api/z2u/actions/next":
+                    self.json_response({"action": runtime.store.claim_z2u_action()})
+                elif self.path.startswith("/api/z2u/actions/"):
+                    action_id = int(self.path.rsplit("/", 1)[1])
+                    success = bool(data.get("success"))
+                    runtime.store.finish_z2u_action(action_id, success, str(data.get("error", ""))[:1000] or None)
+                    runtime.store.add_activity("z2u", f"Z2U stock action #{action_id} " + ("succeeded" if success else "failed"))
                     self.json_response({"ok": True})
                 else: self.send_error(404)
             except (ValueError, TypeError) as exc: self.json_response({"error": str(exc)}, 400)

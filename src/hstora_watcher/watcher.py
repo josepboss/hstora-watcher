@@ -40,10 +40,14 @@ class Watcher:
                         details.append(f"Price changed: {old['price']} → {product.price} {product.currency}")
                     if old["stock"] == 0 and product.stock > 0:
                         details.append(f"Restocked: 0 → {product.stock}")
+                        queued = self.store.queue_z2u_action(product.id, "relist")
+                        details.append("Z2U activation queued" if queued else "Z2U activation not queued: add offer ID and manage URL")
                     elif old["stock"] > threshold >= product.stock > 0:
                         details.append(f"Low stock: {old['stock']} → {product.stock} (threshold {threshold})")
                     elif old["stock"] > 0 and product.stock == 0:
                         details.append("Out of stock")
+                        queued = self.store.queue_z2u_action(product.id, "deactivate")
+                        details.append("Z2U deactivation queued" if queued else "Z2U deactivation not queued: add offer ID and manage URL")
                     if details:
                         self._send("🔔 HStora product update", product, details)
                         alerts += 1

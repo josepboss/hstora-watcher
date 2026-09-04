@@ -42,6 +42,26 @@ CREATE TABLE IF NOT EXISTS activity (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity(created_at DESC);
+CREATE TABLE IF NOT EXISTS z2u_offers (
+  product_id INTEGER PRIMARY KEY,
+  offer_id TEXT,
+  manage_url TEXT,
+  status TEXT NOT NULL DEFAULT 'prepared',
+  listed_price TEXT,
+  error TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS z2u_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL,
+  action TEXT NOT NULL CHECK(action IN ('deactivate','relist')),
+  status TEXT NOT NULL DEFAULT 'pending',
+  attempts INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_z2u_actions_status ON z2u_actions(status, id);
 """
 
 
@@ -51,6 +71,9 @@ class Store:
         self.path = path
         with self.connect() as db:
             db.executescript(SCHEMA)
+            columns = {row[1] for row in db.execute("PRAGMA table_info(z2u_offers)")}
+            if "manage_url" not in columns:
+                db.execute("ALTER TABLE z2u_offers ADD COLUMN manage_url TEXT")
             db.execute("PRAGMA optimize")
 
     @contextmanager
@@ -122,3 +145,58 @@ class Store:
             keywords = db.execute("SELECT COUNT(*) FROM keyword_watches").fetchone()[0]
             tracked = db.execute("SELECT COUNT(*) FROM product_state").fetchone()[0]
         return {"products": products, "keywords": keywords, "tracked": tracked}
+
+    def save_z2u_offer(self, product_id: int, status: str, offer_id: str | None = None, listed_price: str | None = None, error: str | None = None, manage_url: str | None = None) -> None:
+        allowed = {"prepared", "filling", "submitted", "published", "failed", "inactive", "automation_retrying", "automation_failed"}
+        if status not in allowed:
+            raise ValueError("Invalid Z2U offer status")
+        with self.connect() as db:
+            db.execute("""INSERT INTO z2u_offers(product_id,offer_id,manage_url,status,listed_price,error) VALUES(?,?,?,?,?,?)
+                ON CONFLICT(product_id) DO UPDATE SET
+                  offer_id=COALESCE(excluded.offer_id,z2u_offers.offer_id), status=excluded.status,
+                  manage_url=COALESCE(excluded.manage_url,z2u_offers.manage_url),
+                  listed_price=COALESCE(excluded.listed_price,z2u_offers.listed_price), error=excluded.error,
+                  updated_at=CURRENT_TIMESTAMP""", (product_id, offer_id, manage_url, status, listed_price, error))
+
+    def z2u_offer(self, product_id: int):
+        with self.connect() as db:
+            return db.execute("SELECT * FROM z2u_offers WHERE product_id=?", (product_id,)).fetchone()
+
+    def z2u_offers(self):
+        with self.connect() as db:
+            return db.execute("SELECT * FROM z2u_offers ORDER BY updated_at DESC").fetchall()
+
+    def queue_z2u_action(self, product_id: int, action: str) -> bool:
+        if action not in {"deactivate", "relist"}:
+            raise ValueError("Invalid Z2U action")
+        with self.connect() as db:
+            offer = db.execute("SELECT offer_id,manage_url FROM z2u_offers WHERE product_id=?", (product_id,)).fetchone()
+            if not offer or not offer["offer_id"] or not offer["manage_url"]:
+                return False
+            duplicate = db.execute("SELECT 1 FROM z2u_actions WHERE product_id=? AND action=? AND status IN ('pending','running')", (product_id, action)).fetchone()
+            if duplicate:
+                return True
+            db.execute("UPDATE z2u_actions SET status='superseded',updated_at=CURRENT_TIMESTAMP WHERE product_id=? AND status='pending'", (product_id,))
+            db.execute("INSERT INTO z2u_actions(product_id,action) VALUES(?,?)", (product_id, action))
+            return True
+
+    def claim_z2u_action(self):
+        with self.connect() as db:
+            db.execute("UPDATE z2u_actions SET status='pending' WHERE status='running' AND updated_at < datetime('now','-5 minutes')")
+            row = db.execute("""SELECT a.*,o.offer_id,o.manage_url FROM z2u_actions a
+                JOIN z2u_offers o ON o.product_id=a.product_id
+                WHERE a.status='pending' ORDER BY a.id LIMIT 1""").fetchone()
+            if not row:
+                return None
+            db.execute("UPDATE z2u_actions SET status='running',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE id=?", (row["id"],))
+            return dict(row)
+
+    def finish_z2u_action(self, action_id: int, success: bool, error: str | None = None) -> None:
+        with self.connect() as db:
+            row = db.execute("SELECT product_id,action,attempts FROM z2u_actions WHERE id=?", (action_id,)).fetchone()
+            if not row:
+                raise ValueError("Unknown Z2U action")
+            status = "succeeded" if success else ("pending" if row["attempts"] < 3 else "failed")
+            db.execute("UPDATE z2u_actions SET status=?,error=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (status, error, action_id))
+            offer_status = "inactive" if row["action"] == "deactivate" and success else "published" if success else "automation_retrying" if status == "pending" else "automation_failed"
+            db.execute("UPDATE z2u_offers SET status=?,error=?,updated_at=CURRENT_TIMESTAMP WHERE product_id=?", (offer_status, error, row["product_id"]))

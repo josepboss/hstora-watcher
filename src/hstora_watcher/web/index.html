@@ -32,13 +32,14 @@
           <article class="metric"><span class="metric-icon cyan">⌕</span><div><small>KEYWORD WATCHES</small><strong id="keyword-count">—</strong></div></article>
           <article class="metric"><span class="metric-icon amber">⚡</span><div><small>LAST ALERTS</small><strong id="alert-count">—</strong></div></article>
         </div>
+        <div class="extension-note panel"><span>EXTENSION</span><div><strong>Z2U listing assistant</strong><small id="extension-state">Waiting for Chrome extension…</small></div></div>
         <div class="grid-two">
           <section class="panel block"><div class="section-head"><div><p class="eyebrow">QUICK ADD</p><h3>Watch a product</h3></div></div><form id="quick-product" class="stack"><label>HStora product ID<input name="productId" type="number" min="1" required placeholder="e.g. 381"></label><label>Low-stock threshold <span>optional</span><input name="threshold" type="number" min="0" placeholder="Uses global default"></label><button class="btn primary" type="submit">Start watching</button></form></section>
           <section class="panel block"><div class="section-head"><div><p class="eyebrow">RECENT SIGNALS</p><h3>Activity</h3></div><button class="icon-btn" id="refresh-activity" title="Refresh">↻</button></div><div id="activity" class="activity"><p class="empty">No activity yet.</p></div></section>
         </div>
       </section>
 
-      <section class="page" id="products"><div class="section-intro"><div><h2>Product watches</h2><p>Track exact listings for price, title, and inventory changes.</p></div><button class="btn primary" data-dialog="product-dialog">+ Add product</button></div><div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Low-stock alert</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div></section>
+      <section class="page" id="products"><div class="section-intro"><div><h2>Product watches</h2><p>Track exact listings for price, title, inventory, and Z2U publication status.</p></div><button class="btn primary" data-dialog="product-dialog">+ Add product</button></div><div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Low-stock alert</th><th>Z2U offer</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div></section>
 
       <section class="page" id="keywords"><div class="section-intro"><div><h2>Keyword watches</h2><p>Get notified when a cheaper matching listing appears.</p></div><button class="btn primary" data-dialog="keyword-dialog">+ Add keywords</button></div><div id="keyword-cards" class="cards"></div></section>
 

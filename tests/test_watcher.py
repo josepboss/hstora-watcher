@@ -3,6 +3,7 @@ import unittest
 from decimal import Decimal
 
 from hstora_watcher.api import Product, sort_products
+from hstora_watcher.listing import prepare_listing, sanitize_listing_text
 from hstora_watcher.storage import Store
 from hstora_watcher.watcher import Watcher
 
@@ -70,6 +71,28 @@ class WatcherTests(unittest.TestCase):
         self.assertEqual([p.id for p in sort_products(items, "price_asc")], [2, 3, 1])
         self.assertEqual([p.id for p in sort_products(items, "stock_desc")], [3, 1, 2])
         self.assertEqual([p.id for p in sort_products(items, "stock_asc")], [2, 1, 3])
+
+    def test_z2u_listing_sanitizes_and_calculates_rules(self):
+        item = Product(9, "HStora Twitter https://hstora.com/item", Decimal("0.40"), "USD", 8, "", description="Buy from HStore at www.hstora.com now")
+        listing = prepare_listing(item, "0.20", ("HStora", "HStore"))
+        self.assertEqual(listing["price"], "0.60")
+        self.assertEqual(listing["minUnits"], 2)
+        self.assertEqual(listing["stock"], 99999999)
+        self.assertNotIn("hstora", (listing["title"] + listing["description"]).lower())
+
+    def test_z2u_minimum_is_one_at_one_dollar(self):
+        listing = prepare_listing(product(price="0.80"), "0.20", ())
+        self.assertEqual(listing["minUnits"], 1)
+
+    def test_stock_actions_require_linked_z2u_offer(self):
+        self.assertFalse(self.store.queue_z2u_action(1, "deactivate"))
+        self.store.save_z2u_offer(1, "published", offer_id="9281536", manage_url="https://www.z2u.com/sell/manageList?service=5&game=15142")
+        self.assertTrue(self.store.queue_z2u_action(1, "deactivate"))
+        action = self.store.claim_z2u_action()
+        self.assertEqual(action["action"], "deactivate")
+        self.assertEqual(action["offer_id"], "9281536")
+        self.store.finish_z2u_action(action["id"], True)
+        self.assertEqual(self.store.z2u_offer(1)["status"], "inactive")
 
 
 if __name__ == "__main__": unittest.main()
