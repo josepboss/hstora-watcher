@@ -27,9 +27,15 @@ class Watcher:
 
     def check_products(self) -> int:
         alerts = 0
+        catalog = {product.id: product for product in self.api.catalog()}
         for watch in self.store.products():
             try:
-                product = self.api.product(watch["product_id"])
+                product = catalog.get(watch["product_id"])
+                if product is None:
+                    # Some APIs omit zero-stock products from the active catalog.
+                    # Refresh only those missing watches individually so an
+                    # out-of-stock transition is still detected.
+                    product = self.api.product(watch["product_id"])
                 old = self.store.state(product.id)
                 threshold = watch["low_stock_threshold"] if watch["low_stock_threshold"] is not None else self.default_threshold
                 if old:

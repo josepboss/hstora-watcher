@@ -123,7 +123,7 @@ class Store:
     def save_state(self, product: Product) -> None:
         with self.connect() as db:
             db.execute("""INSERT INTO product_state(product_id,name,price,currency,stock,url,seller) VALUES(?,?,?,?,?,?,?)
-                ON CONFLICT(product_id) DO UPDATE SET name=excluded.name,price=excluded.price,currency=excluded.currency,stock=excluded.stock,url=excluded.url,seller=excluded.seller,updated_at=CURRENT_TIMESTAMP""",
+                ON CONFLICT(product_id) DO UPDATE SET name=excluded.name,price=excluded.price,currency=excluded.currency,stock=excluded.stock,url=excluded.url,seller=CASE WHEN excluded.seller<>'' THEN excluded.seller ELSE product_state.seller END,updated_at=CURRENT_TIMESTAMP""",
                 (product.id, product.name, str(product.price), product.currency, product.stock, product.url, product.seller))
 
     def keyword_match(self, watch_id: int, product_id: int):

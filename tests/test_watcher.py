@@ -92,6 +92,18 @@ class WatcherTests(unittest.TestCase):
         self.assertEqual(direct.seller, "MiraStore")
         self.assertEqual(inferred.seller, "MiraStore")
 
+    def test_catalog_snapshot_is_cached(self):
+        from hstora_watcher.api import HstoraClient
+        client = HstoraClient("key", "secret", "https://example.test/api/v1")
+        calls = []
+        def fake_get(path, params):
+            calls.append((path, params))
+            return {"items": [{"id": 1, "name": "A", "price": 1, "stock_available": 2}], "pagination": {"page": 1, "pages": 1}}
+        client._get = fake_get
+        self.assertEqual(len(list(client.catalog())), 1)
+        self.assertEqual(len(list(client.catalog())), 1)
+        self.assertEqual(len(calls), 1)
+
     def test_stock_actions_require_linked_z2u_offer(self):
         self.assertFalse(self.store.queue_z2u_action(1, "deactivate"))
         self.store.save_z2u_offer(1, "published", offer_id="9281536", manage_url="https://www.z2u.com/sell/manageList?service=5&game=15142")

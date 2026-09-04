@@ -5,6 +5,7 @@ import hmac
 import json
 import re
 import secrets
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -72,32 +73,48 @@ class HstoraClient:
         self.api_secret = api_secret.encode()
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._catalog_cache: list[Product] = []
+        self._catalog_cached_at = 0.0
+        self._catalog_lock = threading.Lock()
 
     def _get(self, path: str, params: list[tuple[str, str]] | None = None) -> dict[str, Any]:
         query = urllib.parse.urlencode(params or [])
-        timestamp = str(int(time.time()))
-        nonce = secrets.token_hex(16)
-        canonical = "\n".join(["GET", path, query, timestamp, nonce, ""])
-        signature = hmac.new(self.api_secret, canonical.encode(), hashlib.sha256).hexdigest()
         url = self.base_url + path.removeprefix("/api/v1")
         if query:
             url += "?" + query
-        request = urllib.request.Request(url, headers={
-            "Accept": "application/json",
-            "User-Agent": "hstora-watcher/0.1",
-            "X-API-Key": self.api_key,
-            "X-Timestamp": timestamp,
-            "X-Nonce": nonce,
-            "X-Signature": signature,
-        })
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                payload = json.load(response)
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise ApiError(f"HStora API returned HTTP {exc.code}: {detail[:500]}") from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise ApiError(f"Could not reach HStora API: {exc}") from exc
+        payload = None
+        for attempt in range(4):
+            timestamp = str(int(time.time()))
+            nonce = secrets.token_hex(16)
+            canonical = "\n".join(["GET", path, query, timestamp, nonce, ""])
+            signature = hmac.new(self.api_secret, canonical.encode(), hashlib.sha256).hexdigest()
+            request = urllib.request.Request(url, headers={
+                "Accept": "application/json",
+                "User-Agent": "hstora-watcher/0.2",
+                "X-API-Key": self.api_key,
+                "X-Timestamp": timestamp,
+                "X-Nonce": nonce,
+                "X-Signature": signature,
+            })
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    payload = json.load(response)
+                break
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code == 429 and attempt < 3:
+                    retry_after = exc.headers.get("Retry-After", "")
+                    try:
+                        delay = min(15.0, max(1.0, float(retry_after)))
+                    except ValueError:
+                        delay = float(2 ** attempt)
+                    time.sleep(delay)
+                    continue
+                raise ApiError(f"HStora API returned HTTP {exc.code}: {detail[:500]}") from exc
+            except (urllib.error.URLError, TimeoutError) as exc:
+                raise ApiError(f"Could not reach HStora API: {exc}") from exc
+        if payload is None:
+            raise ApiError("HStora API did not return a response")
         if not payload.get("success"):
             raise ApiError(str(payload.get("message") or payload.get("error") or payload))
         return payload["data"]
@@ -105,16 +122,22 @@ class HstoraClient:
     def product(self, product_id: int) -> Product:
         return Product.from_api(self._get(f"/api/v1/products/{product_id}"))
 
-    def catalog(self, page_size: int = 100) -> Iterator[Product]:
-        page = 1
-        while True:
-            data = self._get("/api/v1/catalog", [("page", str(page)), ("limit", str(page_size))])
-            for item in data.get("items", []):
-                yield Product.from_api(item)
-            pagination = data.get("pagination", {})
-            if page >= int(pagination.get("pages", page)):
-                return
-            page += 1
+    def catalog(self, page_size: int = 100, cache_seconds: int = 120) -> Iterator[Product]:
+        with self._catalog_lock:
+            if self._catalog_cache and time.monotonic() - self._catalog_cached_at < cache_seconds:
+                return iter(tuple(self._catalog_cache))
+            products: list[Product] = []
+            page = 1
+            while True:
+                data = self._get("/api/v1/catalog", [("page", str(page)), ("limit", str(page_size))])
+                products.extend(Product.from_api(item) for item in data.get("items", []))
+                pagination = data.get("pagination", {})
+                if page >= int(pagination.get("pages", page)):
+                    break
+                page += 1
+            self._catalog_cache = products
+            self._catalog_cached_at = time.monotonic()
+            return iter(tuple(products))
 
     def seller_catalog(self, seller: str, max_pages: int = 50) -> tuple[str, list[Product]]:
         """Discover a public seller's product IDs, then load live details via the API."""
@@ -146,8 +169,6 @@ class HstoraClient:
             has_next = bool(re.search(rf"/en/store/{re.escape(slug)}\?page={page + 1}\b", html_text))
             if not has_next or not fresh:
                 break
-        products = []
-        for product_id in product_ids:
-            product = self.product(product_id)
-            products.append(Product(**{**product.__dict__, "seller": seller_name}))
+        wanted = set(product_ids)
+        products = [Product(**{**product.__dict__, "seller": seller_name}) for product in self.catalog() if product.id in wanted]
         return seller_name, products
